@@ -24,9 +24,12 @@ io.on('connection', (socket) => {
 
     // El Espectador pide la señal
     socket.on('request-header', () => {
+        console.log(`📡 Solicitud de cabecera recibida de ${socket.id}`);
         if (videoHeader) {
             socket.emit('video-stream', videoHeader);
-            console.log('📡 Cabecera enviada al espectador');
+            console.log('✅ Cabecera enviada al espectador');
+        } else {
+            console.log('⚠️ No hay cabecera disponible aún (Transmisor no iniciado)');
         }
     });
 
@@ -62,4 +65,3 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`👉 http://localhost:${PORT}/broadcaster.html`);
     console.log('\n==================================================');
 });
-
