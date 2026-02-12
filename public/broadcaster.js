@@ -122,6 +122,7 @@ toggleMicBtn.onclick = () => {
 shareScreenBtn.onclick = async () => {
     try {
         if (!isScreenSharing) {
+            status.textContent = "Preparando captura de pantalla...";
             screenStream = await navigator.mediaDevices.getDisplayMedia({
                 video: {
                     width: 854,
@@ -139,8 +140,9 @@ shareScreenBtn.onclick = async () => {
             screenStream.getVideoTracks()[0].onended = () => stopScreenShare();
 
             if (isBroadcasting) {
-                mediaRecorder.stop();
-                startRecording();
+                if (mediaRecorder) mediaRecorder.stop();
+                status.textContent = "Conmutando señal...";
+                setTimeout(() => startRecording(), 1000); // Pausa de 1s para asegurar limpieza en el servidor
             }
         } else {
             stopScreenShare();
