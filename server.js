@@ -22,10 +22,13 @@ let videoHeader = null;
 io.on('connection', (socket) => {
     console.log('Nuevo usuario conectado:', socket.id);
 
-    // Si hay una transmisión activa, enviar cabecera al nuevo espectador
-    if (videoHeader) {
-        socket.emit('video-stream', videoHeader);
-    }
+    // El Espectador pide la señal
+    socket.on('request-header', () => {
+        if (videoHeader) {
+            socket.emit('video-stream', videoHeader);
+            console.log('📡 Cabecera enviada al espectador');
+        }
+    });
 
     // El Transmisor avisa que inicia
     socket.on('start-broadcast', () => {
@@ -59,3 +62,4 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`👉 http://localhost:${PORT}/broadcaster.html`);
     console.log('\n==================================================');
 });
+
