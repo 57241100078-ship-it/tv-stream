@@ -2,16 +2,22 @@ const socket = io();
 const preview = document.getElementById('preview');
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
+const toggleCamBtn = document.getElementById('toggleCamBtn');
+const toggleMicBtn = document.getElementById('toggleMicBtn');
+const shareScreenBtn = document.getElementById('shareScreenBtn');
 const liveBadge = document.getElementById('liveBadge');
 const status = document.getElementById('status');
 const audioBar = document.getElementById('audioBar');
 
 let mediaRecorder;
 let stream;
+let screenStream;
 let audioContext;
 let analyser;
 let dataArray;
 let animationId;
+let isBroadcasting = false;
+let isScreenSharing = false;
 
 async function init() {
     try {
@@ -21,10 +27,7 @@ async function init() {
         });
         preview.srcObject = stream;
         status.textContent = "📡 Estudio listo para transmitir";
-
-        // Configurar monitoreo de audio (voz)
         setupAudioMonitor(stream);
-
     } catch (err) {
         console.error("Error al acceder a la cámara:", err);
         status.textContent = "❌ Error: Activa tu cámara y micrófono.";
@@ -32,6 +35,7 @@ async function init() {
 }
 
 function setupAudioMonitor(stream) {
+    if (audioContext) audioContext.close();
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const source = audioContext.createMediaStreamSource(stream);
     analyser = audioContext.createAnalyser();
@@ -47,36 +51,42 @@ function setupAudioMonitor(stream) {
         for (let i = 0; i < bufferLength; i++) {
             sum += dataArray[i];
         }
-        let average = sum / bufferLength;
-        let volume = Math.min(100, (average / 128) * 100);
+        let volume = Math.min(100, (sum / bufferLength / 128) * 100);
         audioBar.style.width = volume + "%";
-
-        // Color de la barra según volumen
-        if (volume > 80) audioBar.style.background = "#ef4444";
-        else if (volume > 50) audioBar.style.background = "#fbbf24";
-        else audioBar.style.background = "#10b981";
-
+        audioBar.style.background = volume > 80 ? "#ef4444" : (volume > 50 ? "#fbbf24" : "#10b981");
         animationId = requestAnimationFrame(updateLevel);
     }
     updateLevel();
 }
 
-startBtn.onclick = () => {
-    socket.emit('start-broadcast');
+function startRecording() {
+    const activeStream = isScreenSharing ? screenStream : stream;
 
-    mediaRecorder = new MediaRecorder(stream, {
+    // Necesitamos asegurarnos de que el audio se incluya si estamos compartiendo pantalla
+    let finalStream = activeStream;
+    if (isScreenSharing && stream.getAudioTracks().length > 0) {
+        finalStream = new MediaStream([...activeStream.getVideoTracks(), ...stream.getAudioTracks()]);
+    }
+
+    mediaRecorder = new MediaRecorder(finalStream, {
         mimeType: 'video/webm; codecs=vp8,opus',
-        videoBitsPerSecond: 1500000 // 1.5 Mbps para mayor nitidez
+        videoBitsPerSecond: 2500000
     });
 
     mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data.size > 0 && socket.connected) {
             socket.emit('video-stream', event.data);
         }
     };
 
+    // Al iniciar, forzar envío de nueva cabecera (start-broadcast lo limpia en el server)
+    socket.emit('start-broadcast');
     mediaRecorder.start(1000);
+}
 
+startBtn.onclick = () => {
+    isBroadcasting = true;
+    startRecording();
     startBtn.style.display = 'none';
     stopBtn.style.display = 'inline-block';
     liveBadge.style.display = 'block';
@@ -84,9 +94,69 @@ startBtn.onclick = () => {
 };
 
 stopBtn.onclick = () => {
-    mediaRecorder.stop();
-    cancelAnimationFrame(animationId);
+    if (mediaRecorder) mediaRecorder.stop();
+    isBroadcasting = false;
     location.reload();
 };
+
+toggleCamBtn.onclick = () => {
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        toggleCamBtn.innerHTML = `<i class="fas fa-video"></i> Cam: ${videoTrack.enabled ? 'ON' : 'OFF'}`;
+        toggleCamBtn.style.background = videoTrack.enabled ? "#475569" : "#ef4444";
+    }
+};
+
+toggleMicBtn.onclick = () => {
+    const audioTrack = stream.getAudioTracks()[0];
+    if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        toggleMicBtn.innerHTML = `<i class="fas fa-microphone"></i> Mic: ${audioTrack.enabled ? 'ON' : 'OFF'}`;
+        toggleMicBtn.style.background = audioTrack.enabled ? "#475569" : "#ef4444";
+    }
+};
+
+shareScreenBtn.onclick = async () => {
+    try {
+        if (!isScreenSharing) {
+            screenStream = await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: true // Capturar audio del sistema si es posible
+            });
+
+            isScreenSharing = true;
+            preview.srcObject = screenStream;
+            shareScreenBtn.innerHTML = `<i class="fas fa-camera"></i> MOSTRAR CÁMARA`;
+            shareScreenBtn.style.background = "#fbbf24";
+
+            screenStream.getVideoTracks()[0].onended = () => stopScreenShare();
+
+            if (isBroadcasting) {
+                mediaRecorder.stop();
+                startRecording();
+            }
+        } else {
+            stopScreenShare();
+        }
+    } catch (err) {
+        console.error("Error compartiendo pantalla:", err);
+    }
+};
+
+function stopScreenShare() {
+    if (screenStream) {
+        screenStream.getTracks().forEach(track => track.stop());
+    }
+    isScreenSharing = false;
+    preview.srcObject = stream;
+    shareScreenBtn.innerHTML = `<i class="fas fa-desktop"></i> COMPARTIR PANTALLA`;
+    shareScreenBtn.style.background = "#6366f1";
+
+    if (isBroadcasting) {
+        mediaRecorder.stop();
+        startRecording();
+    }
+}
 
 init();

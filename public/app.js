@@ -67,10 +67,23 @@ socket.on('video-stream', (arrayBuffer) => {
         status.textContent = "🔴 TRANSMITIENDO EN VIVO";
     }
 
-    if (sourceBuffer.updating || queue.length > 0) {
-        queue.push(arrayBuffer);
-    } else {
-        sourceBuffer.appendBuffer(arrayBuffer);
+    try {
+        if (sourceBuffer.updating || queue.length > 0) {
+            queue.push(arrayBuffer);
+        } else {
+            sourceBuffer.appendBuffer(arrayBuffer);
+        }
+    } catch (e) {
+        console.warn("⚠️ Buffer lleno o error, reiniciando sintonía...");
+        location.reload(); // Forma más segura de limpiar el buffer ante cambios de codec/fuente
+    }
+});
+
+socket.on('start-broadcast', () => {
+    console.log("📡 El transmisor ha reiniciado la señal.");
+    if (isPlaying) {
+        status.textContent = "Reconectando señal...";
+        setTimeout(() => location.reload(), 1500);
     }
 });
 
