@@ -12,14 +12,14 @@ let isPlaying = false;
 
 function initMediaSource() {
     if (mediaSource) return;
-
+    console.log("🛠️ Creando MediaSource...");
     mediaSource = new MediaSource();
     videoPlayer.src = URL.createObjectURL(mediaSource);
 
     mediaSource.addEventListener('sourceopen', () => {
+        console.log("✅ MediaSource abierto. Configurando buffer...");
         try {
-            // Usar el mismo codec que el transmisor
-            sourceBuffer = mediaSource.addSourceBuffer('video/webm; codecs=vp8,opus');
+            sourceBuffer = mediaSource.addSourceBuffer('video/webm; codecs="vp8,opus"');
             sourceBuffer.mode = 'sequence';
 
             sourceBuffer.addEventListener('updateend', () => {
@@ -28,27 +28,30 @@ function initMediaSource() {
                 }
             });
         } catch (e) {
-            console.error("Error al crear SourceBuffer:", e);
-            status.textContent = "Error: Tu navegador no soporta este formato de video.";
+            console.error("❌ Error en SourceBuffer:", e);
+            status.textContent = "Error de formato: " + e.message;
         }
     });
 }
 
 playOverlay.addEventListener('click', () => {
-    console.log("🖱️ PlayOverlay clickeado");
-    status.textContent = "Iniciandolo...";
+    console.log("🖱️ Intento de sintonización...");
+    status.textContent = "Sintonizando señal...";
+
     initMediaSource();
 
+    // Intentar reproducir (necesario por el gesto del usuario)
     videoPlayer.play().then(() => {
-        console.log("✅ Video reproduciéndose");
-        isPlaying = true;
-        playOverlay.style.display = 'none';
-        status.textContent = "Conectado. Sintonizando...";
-        socket.emit('request-header');
+        console.log("✅ Play iniciado con éxito");
     }).catch(err => {
-        console.error("❌ Error de reproducción:", err);
-        status.textContent = "Error: " + err.message;
+        console.warn("⚠️ Play pendiente/bloqueado (esperando datos):", err.message);
     });
+
+    // Continuar aunque el play esté pendiente (se resolverá cuando llegue video)
+    isPlaying = true;
+    playOverlay.style.display = 'none';
+    socket.emit('request-header');
+    console.log("📡 Solicitud de cabecera enviada");
 });
 
 volumeSlider.oninput = (e) => {
@@ -58,8 +61,11 @@ volumeSlider.oninput = (e) => {
 socket.on('video-stream', (arrayBuffer) => {
     if (!isPlaying || !sourceBuffer) return;
 
-    liveBadge.style.display = 'block';
-    status.textContent = "🔴 TRANSMITIENDO EN VIVO";
+    if (liveBadge.style.display !== 'block') {
+        console.log("📺 ¡Primer fragmento de video recibido!");
+        liveBadge.style.display = 'block';
+        status.textContent = "🔴 TRANSMITIENDO EN VIVO";
+    }
 
     if (sourceBuffer.updating || queue.length > 0) {
         queue.push(arrayBuffer);
