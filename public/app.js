@@ -34,20 +34,22 @@ function initMediaSource() {
     });
 }
 
-playOverlay.onclick = () => {
+playOverlay.addEventListener('click', () => {
+    console.log("🖱️ PlayOverlay clickeado");
+    status.textContent = "Iniciandolo...";
     initMediaSource();
+
     videoPlayer.play().then(() => {
+        console.log("✅ Video reproduciéndose");
         isPlaying = true;
         playOverlay.style.display = 'none';
         status.textContent = "Conectado. Sintonizando...";
-
-        // Pedir la cabecera al servidor ahora que el buffer está listo
         socket.emit('request-header');
     }).catch(err => {
-        console.error("Error de reproducción:", err);
-        status.textContent = "Haz clic de nuevo para habilitar el audio/video.";
+        console.error("❌ Error de reproducción:", err);
+        status.textContent = "Error: " + err.message;
     });
-};
+});
 
 volumeSlider.oninput = (e) => {
     videoPlayer.volume = e.target.value;
@@ -73,4 +75,3 @@ socket.on('reset-client', () => {
 socket.on('connect', () => {
     console.log("Conectado al servidor de TV.");
 });
-
