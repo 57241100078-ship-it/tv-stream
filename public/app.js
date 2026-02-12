@@ -39,7 +39,10 @@ playOverlay.onclick = () => {
     videoPlayer.play().then(() => {
         isPlaying = true;
         playOverlay.style.display = 'none';
-        status.textContent = "Conectado. Esperando video...";
+        status.textContent = "Conectado. Sintonizando...";
+
+        // Pedir la cabecera al servidor ahora que el buffer está listo
+        socket.emit('request-header');
     }).catch(err => {
         console.error("Error de reproducción:", err);
         status.textContent = "Haz clic de nuevo para habilitar el audio/video.";
@@ -70,3 +73,4 @@ socket.on('reset-client', () => {
 socket.on('connect', () => {
     console.log("Conectado al servidor de TV.");
 });
+
