@@ -43,17 +43,16 @@ playOverlay.addEventListener('click', () => {
     // Detectar cuando el video se detiene por falta de datos
     let stallTimer;
     videoPlayer.onwaiting = () => {
-        console.log("⏳ El video está esperando más datos (buffer vacío)...");
+        console.log("⏳ Sincronizando búfer...");
         status.textContent = "Sincronizando señal...";
 
-        // Si tarda más de 4 segundos en volver, forzar refresco
         clearTimeout(stallTimer);
         stallTimer = setTimeout(() => {
-            if (videoPlayer.paused || videoPlayer.readyState < 3) {
-                console.log("🔄 Demasiado tiempo esperando, refrescando...");
+            if (videoPlayer.readyState < 3) {
+                console.warn("🔄 Sincronización fallida, refrescando...");
                 location.reload();
             }
-        }, 4000);
+        }, 3000); // 3 segundos antes de auto-refrescar
     };
 
     videoPlayer.onerror = (e) => {

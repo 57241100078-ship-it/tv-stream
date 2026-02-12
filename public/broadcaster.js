@@ -22,7 +22,7 @@ let isScreenSharing = false;
 async function init() {
     try {
         stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: 854, height: 480 }, // Bajado a 480p para máximo alcance
+            video: { width: 854, height: 480 }, // Calidad estándar para máximo alcance
             audio: true
         });
         preview.srcObject = stream;
@@ -73,7 +73,7 @@ function startRecording() {
 
     mediaRecorder = new MediaRecorder(finalStream, {
         mimeType: 'video/webm; codecs=vp8,opus',
-        videoBitsPerSecond: 800000 // Bajado a 0.8 Mbps para fluidez extrema en móviles
+        videoBitsPerSecond: 800000 // Bajado a 0.8 Mbps para fluidez absoluta
     });
 
     mediaRecorder.ondataavailable = (event) => {
@@ -124,8 +124,9 @@ shareScreenBtn.onclick = async () => {
         if (!isScreenSharing) {
             screenStream = await navigator.mediaDevices.getDisplayMedia({
                 video: {
-                    frameRate: { ideal: 15, max: 20 }, // Menos FPS = menos carga para el servidor
-                    width: { max: 1280 }
+                    width: 854,
+                    height: 480,
+                    frameRate: 15 // Menos FPS = menos carga
                 },
                 audio: true
             });
