@@ -141,8 +141,9 @@ shareScreenBtn.onclick = async () => {
 
             if (isBroadcasting) {
                 if (mediaRecorder) mediaRecorder.stop();
-                status.textContent = "Conmutando señal...";
-                setTimeout(() => startRecording(), 1000); // Pausa de 1s para asegurar limpieza en el servidor
+                status.textContent = "Conmutando a pantalla...";
+                // Esperar 1.5s para que los clientes se preparen para el cambio de codec/header
+                setTimeout(() => startRecording(), 1500);
             }
         } else {
             stopScreenShare();

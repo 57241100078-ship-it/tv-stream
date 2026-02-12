@@ -10,22 +10,28 @@ let sourceBuffer;
 let queue = [];
 let isPlaying = false;
 let stallTimer;
+let resetCount = 0;
 
 function initMediaSource() {
-    console.log("🛠️ Inicializando Sistema de Video...");
+    console.log("🛠️ Re-inicializando motor de video...");
 
-    // Limpiar previo si existe
-    if (mediaSource && mediaSource.readyState === 'open') {
-        mediaSource.endOfStream();
+    // Limpieza profunda de recursos
+    if (mediaSource) {
+        try {
+            if (mediaSource.readyState === 'open') mediaSource.endOfStream();
+        } catch (e) { }
     }
+
+    videoPlayer.pause();
+    videoPlayer.src = "";
+    videoPlayer.load();
 
     mediaSource = new MediaSource();
     videoPlayer.src = URL.createObjectURL(mediaSource);
 
     mediaSource.addEventListener('sourceopen', () => {
-        console.log("✅ Conexión de video abierta.");
+        console.log("✅ Canal de datos abierto");
         try {
-            // Usamos VP8 y Opus (estándar WebM)
             sourceBuffer = mediaSource.addSourceBuffer('video/webm; codecs="vp8,opus"');
             sourceBuffer.mode = 'sequence';
 
@@ -35,50 +41,52 @@ function initMediaSource() {
                 }
             });
         } catch (e) {
-            console.error("❌ Error de compatibilidad:", e);
-            status.textContent = "Error: Navegador no compatible con este flujo.";
+            console.error("❌ Codec no soportado:", e);
+            status.textContent = "Error: Formato no compatible.";
         }
     });
 }
 
 function softReset() {
-    console.log("� Re-sintonizando canal (Soft Reset)...");
+    console.log("🔄 Re-sintonizando...");
     queue = [];
     sourceBuffer = null;
     initMediaSource();
+
+    // Reintentar pedir cabecera un par de veces por si el servidor no la tiene lista
     socket.emit('request-header');
+    setTimeout(() => { if (!sourceBuffer) socket.emit('request-header'); }, 1000);
+    setTimeout(() => { if (!sourceBuffer) socket.emit('request-header'); }, 2000);
 }
 
 playOverlay.addEventListener('click', () => {
-    status.textContent = "Sintonizando señal...";
+    status.textContent = "Conectando...";
     initMediaSource();
 
     videoPlayer.onwaiting = () => {
-        status.textContent = "Cargando señal...";
+        status.textContent = "Buscando señal...";
         clearTimeout(stallTimer);
         stallTimer = setTimeout(() => {
             if (videoPlayer.readyState < 3) {
-                console.warn("⚠️ Señal perdida, re-sintonizando...");
-                softReset();
+                resetCount++;
+                if (resetCount > 2) location.reload(); // Último recurso
+                else softReset();
             }
-        }, 3500);
+        }, 4000);
     };
 
     videoPlayer.onplaying = () => {
         clearTimeout(stallTimer);
+        resetCount = 0;
         status.textContent = "🔴 TRANSMITIENDO EN VIVO";
     };
 
     videoPlayer.onerror = () => {
-        console.warn("❌ Error en video, re-intentando...");
+        console.error("❌ Error de video detectado");
         softReset();
     };
 
-    videoPlayer.play().then(() => {
-        console.log("✅ Play activo");
-    }).catch(err => {
-        console.warn("⚠️ Play retenido:", err.message);
-    });
+    videoPlayer.play().catch(() => console.log("Play diferido"));
 
     isPlaying = true;
     playOverlay.style.display = 'none';
@@ -97,16 +105,22 @@ socket.on('video-stream', (arrayBuffer) => {
             queue.push(arrayBuffer);
         } else {
             sourceBuffer.appendBuffer(arrayBuffer);
+            if (videoPlayer.paused && videoPlayer.readyState >= 2) {
+                videoPlayer.play().catch(() => { });
+            }
         }
     } catch (e) {
-        console.warn("⚠️ Error de buffer, re-sintonizando...");
+        console.warn("⚠️ Buffer corrupto, re-sincronizando...");
         softReset();
     }
 });
 
 socket.on('start-broadcast', () => {
-    console.log("📡 Nueva fuente detectada");
-    if (isPlaying) softReset();
+    console.log("📡 El estudio cambió de cámara/pantalla");
+    if (isPlaying) {
+        status.textContent = "Cambiando fuente...";
+        setTimeout(softReset, 800);
+    }
 });
 
 socket.on('reset-client', () => {
@@ -117,6 +131,4 @@ volumeSlider.oninput = (e) => {
     videoPlayer.volume = e.target.value;
 };
 
-socket.on('connect', () => {
-    console.log("Conectado al servidor de TV.");
-});
+socket.on('connect', () => console.log("Socket conectado."));
